@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy import *
 from pylab import plot, show, xlabel, ylabel
-from scipy.special import expit
+# from scipy.special import expit
 
 np.set_printoptions(threshold=np.nan)
 
@@ -138,6 +138,9 @@ def foldData(fold, data):
 
     return index, train, validation, theta[:, fold]
 
+def logitFunc(x):
+
+    return 1 / (1 + exp(-x))
 
 def linearParams(theta, fold, alpha, X, y, train):
 
@@ -148,29 +151,29 @@ def linearParams(theta, fold, alpha, X, y, train):
 
 def logisticParams(theta, fold, alpha, X, y, train):
 
-    theta[:, fold] = theta[:, fold] + alpha / (len(train)) * np.dot((y - expit(np.dot(X, theta[:, fold]))), X)
+    theta[:, fold] = theta[:, fold] + alpha / (len(train)) * np.dot((y - logitFunc(np.dot(X, theta[:, fold]))), X)
 
     return theta[:, fold]
 
 def costFunction(type, theta, fold, validation, index):
 
     # SSE
-    yVal = validation[:, -1]
+    correctY = validation[:, -1]
 
-    XVal = validation[:, :-1]
+    correctX = validation[:, :-1]
 
     # Prediction
-    yHat = np.dot(XVal, theta[:, fold])
+    predictedY = np.dot(correctX, theta[:, fold])
 
-    predictions[index] = yHat
+    predictions[index] = predictedY
 
     if type == 'linear':
 
-        mse = np.sum(np.square(yHat - yVal)) / (2 * len(yVal))
+        mse = np.sum(np.square(predictedY - correctY)) / (2 * len(correctY))
 
     elif type == 'logistic':
 
-        mse = np.sum(np.square(expit(yHat) - yVal)) / (2 * len(yVal))
+        mse = np.sum(np.square(logitFunc(predictedY) - correctY)) / (2 * len(correctY))
 
     return mse
 
@@ -236,16 +239,16 @@ def gradientDescent(data, theta, alpha, tolerance, type, convergence):
 
         avgMseList.append((epoch, avgMeanError))
 
-        print("Ending epoch %d with average mean squared error of %f" % (epoch, avgMeanError))
+        print("Ending epoch %d with average mean squared error of %f (%s and %s)" % (epoch, avgMeanError, type, convergence))
 
         epoch += 1
 
     return avgMseList, epoch
 
 
-def printResults(result):
-
-    plot(arange(result[0]), result[1])
+def printResults(epoch, values):
+    print (epoch, values)
+    plot(arange(epoch), values)
 
     xlabel('Iterations')
 
@@ -261,29 +264,30 @@ if __name__ == '__main__':
     data, columns, predictions, theta = prepareData(pandaData)
 
     linStoch1, iters = gradientDescent(data, theta, 0.1, 0.000001, 'linear', 'stocastic')
-    printResults(linStoch1)
+    epoch, values = linStoch1[0], linStoch1[1]
+    # printResults(epoch, values)
 
     # gradientDescent(data, theta, 1, 0.000001, 'linear', 'stocastic')
-    # gradientDescent(data, theta, 0.1, 0.000001, 'linear', 'stocastic')
+    gradientDescent(data, theta, 0.075, 0.0000001, 'linear', 'stocastic')
     # gradientDescent(data, theta, 0.2, 0.000001, 'linear', 'stocastic')
     # gradientDescent(data, theta, 0.3, 0.000001, 'linear', 'stocastic')
     # gradientDescent(data, theta, 0.4, 0.000001, 'linear', 'stocastic')
 
-    gradientDescent(data, theta, 1, 0.000001, 'linear', 'batch')
+    gradientDescent(data, theta, 0.075, 0.0000001, 'linear', 'batch')
     # gradientDescent(data, theta, 0.1, 0.000001, 'linear', 'batch')
     # gradientDescent(data, theta, 0.2, 0.000001, 'linear', 'batch')
     # gradientDescent(data, theta, 0.3, 0.000001, 'linear', 'batch')
     # gradientDescent(data, theta, 0.4, 0.000001, 'linear', 'batch')
     #
-    gradientDescent(data, theta, 1, 0.000001, 'logistic', 'stocastic')
+    gradientDescent(data, theta, 0.075, 0.0000001, 'logistic', 'stocastic')
     # gradientDescent(data, theta, 0.1, 0.000001, 'logistic', 'stocastic')
-    # gradientDescent(data, theta, 0.2, 0.000001, 'logistic', 'stocastic')
+    gradientDescent(data, theta, 0.2, 0.0000001, 'logistic', 'stocastic')
     # gradientDescent(data, theta, 0.3, 0.000001, 'logistic', 'stocastic')
     # gradientDescent(data, theta, 0.4, 0.000001, 'logistic', 'stocastic')
     #
-    gradientDescent(data, theta, 1, 0.000001, 'logistic', 'batch')
+    gradientDescent(data, theta, 0.075, 0.0000001, 'logistic', 'batch')
     # gradientDescent(data, theta, 0.1, 0.000001, 'logistic', 'batch')
-    # gradientDescent(data, theta, 0.2, 0.000001, 'logistic', 'batch')
+    gradientDescent(data, theta, 0.2, 0.0000001, 'logistic', 'batch')
     # gradientDescent(data, theta, 0.3, 0.000001, 'logistic', 'batch')
     # gradientDescent(data, theta, 0.4, 0.000001, 'logistic', 'batch')
 
