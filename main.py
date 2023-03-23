@@ -1,7 +1,5 @@
-import os
 import numpy as np
 import pandas as pd
-from scipy import stats
 import matplotlib.pyplot as plt
 
 def load_dataset(filename: str) -> pd.DataFrame:
