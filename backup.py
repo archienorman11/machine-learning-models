@@ -1,4 +1,3 @@
-import sys
 from collections import Counter
 from typing import List, Tuple, Union
 
