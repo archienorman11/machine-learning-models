@@ -1,98 +1,78 @@
-from numpy import loadtxt, zeros, ones, array, linspace, logspace, mean, std, arange
-from mpl_toolkits.mplot3d import Axes3D
+"""
+This script performs linear regression using gradient descent to predict an outcome based on two features.
+The script loads a dataset containing the features and the outcome, normalizes the feature values, and then
+applies gradient descent to learn the optimal weights (theta) for the model. The cost function is calculated 
+during each iteration of the gradient descent to monitor the model's performance. Finally, a plot of the cost 
+function is displayed over the number of iterations to visualize the optimization process.
+"""
+
+
+import numpy as np
 import matplotlib.pyplot as plt
-from pylab import plot, show, xlabel, ylabel
+from typing import Tuple, List
 
-#Evaluate the linear regression
-
-def feature_normalize(X):
-    '''
-    Returns a normalized version of X where
-    the mean value of each feature is 0 and the standard deviation
-    is 1. This is often a good preprocessing step to do when
-    working with learning algorithms.
-    '''
+def feature_normalize(X: np.ndarray) -> Tuple[np.ndarray, List[float], List[float]]:
     mean_r = []
     std_r = []
 
-    X_norm = X
-
+    X_norm = X.copy()
     n_c = X.shape[1]
+
     for i in range(n_c):
-        m = mean(X[:, i])
-        s = std(X[:, i])
+        m = np.mean(X[:, i])
+        s = np.std(X[:, i])
         mean_r.append(m)
         std_r.append(s)
         X_norm[:, i] = (X_norm[:, i] - m) / s
 
     return X_norm, mean_r, std_r
 
-def compute_cost(X, y, theta):
-    '''
-    Comput cost for linear regression
-    '''
-    #Number of training samples
+def compute_cost(X: np.ndarray, y: np.ndarray, theta: np.ndarray) -> float:
     m = y.size
     predictions = X.dot(theta)
-    sqErrors = (predictions - y)
-    J = (1.0 / (2 * m)) * sqErrors.T.dot(sqErrors)
+    sq_errors = (predictions - y)
+    J = (1.0 / (2 * m)) * sq_errors.T.dot(sq_errors)
     return J
 
-def gradient_descent(X, y, theta, alpha, num_iters):
-    '''
-    Performs gradient descent to learn theta
-    by taking num_items gradient steps with learning
-    rate alpha
-    '''
-    print X
+def gradient_descent(X: np.ndarray, y: np.ndarray, theta: np.ndarray, alpha: float, num_iters: int) -> Tuple[np.ndarray, np.ndarray]:
     m = y.size
-    J_history = zeros(shape=(num_iters, 1))
+    J_history = np.zeros(shape=(num_iters, 1))
 
     for i in range(num_iters):
         predictions = X.dot(theta)
         theta_size = theta.size
+
         for it in range(theta_size):
-            temp = X[:, it]
-            temp.shape = (m, 1)
+            temp = X[:, it].reshape((m, 1))
             errors_x1 = (predictions - y) * temp
-            theta[it][0] = theta[it][0] - alpha * (1.0 / m) * errors_x1.sum()
+            theta[it][0] -= alpha * (1.0 / m) * errors_x1.sum()
+
         J_history[i, 0] = compute_cost(X, y, theta)
+
     return theta, J_history
 
-#Load the dataset
-data = loadtxt('data/spambase.data', delimiter=',')
+data = np.loadtxt('data/spambase.data', delimiter=',')
 
 X = data[:, :2]
 y = data[:, 2]
-# print X.shape
-#number of training samples
 m = y.size
 
-print m
+y = y.reshape((m, 1))
 
-y.shape = (m, 1)
-
-#Scale features and set them to zero mean
 x, mean_r, std_r = feature_normalize(X)
 
-#Add a column of ones to X (interception data)
-it = ones(shape=(m, 3))
+it = np.ones(shape=(m, 3))
 it[:, 1:3] = x
 
-#Some gradient descent settings
 iterations = 100
 alpha = 0.01
 
-#Init Theta and Run Gradient Descent
-theta = zeros(shape=(3, 1))
-
+theta = np.zeros(shape=(3, 1))
 theta, J_history = gradient_descent(it, y, theta, alpha, iterations)
-print theta, J_history
-plot(arange(iterations), J_history)
-xlabel('Iterations')
-ylabel('Cost Function')
-show()
-#
-# #Predict price of a 1650 sq-ft 3 br house
-# price = array([1.0,   ((1650.0 - mean_r[0]) / std_r[0]), ((3 - mean_r[1]) / std_r[1])]).dot(theta)
-# print 'Predicted price of a 1650 sq-ft, 3 br house: %f' % (price)
+
+print(theta, J_history)
+
+plt.plot(np.arange(iterations), J_history)
+plt.xlabel('Iterations')
+plt.ylabel('Cost Function')
+plt.show()
