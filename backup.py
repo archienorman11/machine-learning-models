@@ -1,163 +1,81 @@
-# -*- coding: utf-8 -*-
 import sys
-from itertools import groupby
-import collections
+from collections import Counter
+from typing import List, Tuple, Union
 
-import total as total
+data: List[List[str]] = []
+all_lists: List[List[List[str]]] = []
+feature_list: List[Tuple[int, str]] = []
 
-data = []
-all_lists = []
-feature_list = []
 
-def openData(filename):
-    print ("loading datset from file %s \n" % filename)
+def load_dataset(filename: str) -> List[List[List[str]]]:
+    print(f"Loading dataset from file {filename}\n")
     with open(filename) as infile:
         for line in infile:
             line = line.strip()
             line = line.split(',')
             data.append(line)
-    return kFoldData(data)
+    return k_fold_data(data)
 
-def kFoldData(data):
+
+def k_fold_data(data: List[List[str]]) -> List[List[List[str]]]:
     for fold in range(1, 11):
-        next = fold
-        list = []
+        next_fold = fold
+        fold_list: List[List[str]] = []
         for i, row in enumerate(data):
-            if i == next:
-                next += 10
-                list.append(row) #use i to test the index values being appended
-        all_lists.append(list)
+            if i == next_fold:
+                next_fold += 10
+                fold_list.append(row)
+        all_lists.append(fold_list)
     return all_lists
 
-def mu():
-    meanFeatures = []
-    featureSum = collections.Counter()
-    featureCount = collections.Counter()
+
+def mu() -> List[Tuple[int, float]]:
+    mean_features = []
+    feature_sum = Counter()
+    feature_count = Counter()
     total = 4601
+
     for key, value in feature_list:
-        featureSum[key] += float(value)
-        featureCount[key] += 1
-    for key in sorted(featureSum.iterkeys()):
-        meanFeatures.append([key, (featureSum[key]/total)])
-    return meanFeatures
+        feature_sum[key] += float(value)
+        feature_count[key] += 1
 
-def sd(meanFeatures):
-    sdFeatures = []
-    sumSquares = collections.Counter()
-    for id, meanValue in meanFeatures:
-        print id
+    for key in sorted(feature_sum.keys()):
+        mean_features.append((key, feature_sum[key] / total))
+
+    return mean_features
+
+
+def sd(mean_features: List[Tuple[int, float]]) -> List:
+    sd_features = []
+    sum_squares = Counter()
+
+    for id, mean_value in mean_features:
         for key, value in feature_list:
-            # print key, value
             if id == key:
-                difference = float(value) - meanValue
-                differenceSqr = difference * difference
-                sumSquares = sum(differenceSqr)
-                print sumSquares, id, value
+                difference = float(value) - mean_value
+                difference_sqr = difference * difference
+                sum_squares[key] += difference_sqr
 
-    # for key in sorted(featureSum.iterkeys()):
-    #     sdFeatures.append([key, (featureSum[key]/total)])
-    return sdFeatures
+    return [sum_squares[key] for key in sorted(sum_squares.keys())]
 
-def preCondition(foldedData):
+
+def pre_condition(folded_data: List[List[List[str]]]) -> None:
     count = 0
+
     for i in range(10):
-        for list in foldedData[i]:
-            count = count + 1
-            for b, featureValue in enumerate(list):
-                feature_data = b, featureValue
+        for fold_list in folded_data[i]:
+            count += 1
+            for b, feature_value in enumerate(fold_list):
+                feature_data = b, feature_value
                 feature_list.append(feature_data)
 
-
-    meanFeatures = mu()
-    print(meanFeatures)
-    featureSdList = sd(meanFeatures)
-    print(featureSdList)
+    mean_features = mu()
+    print(mean_features)
+    feature_sd_list = sd(mean_features)
+    print(feature_sd_list)
     print(count)
 
 
 if __name__ == '__main__':
-    foldedData = openData("data/spambase.data")
-    zScoreData = preCondition(foldedData)
-
-
-
-
-
-
-# -*- coding: utf-8 -*-
-import numpy as np
-import collections
-from math import sqrt
-from scipy import *
-import scipy.stats as ss
-
-np.set_printoptions(threshold=np.nan)
-
-data = []
-all_lists = []
-
-def openData(filename):
-    print ("loading datset from file %s \n" % filename)
-    with open(filename) as infile:
-        for line in infile:
-            line = line.strip()
-            line = line.split(',')
-            data.append(line)
-    return kFoldData(data)
-
-def kFoldData(data):
-    for fold in range(1, 11):
-        next = fold
-        list = []
-        for i, row in enumerate(data):
-            if i == next:
-                next += 10
-                list.append(row) #use i to test the index values being appended
-        all_lists.append(list)
-    return all_lists
-
-def stats(featureList):
-    featureList = featureList.astype(np.float)
-    num_items = len(featureList)
-    sum_list = sum(featureList)
-    mu = sum_list / num_items
-    differences = [x - mu for x in featureList]
-    squareDiffs = [d ** 2 for d in differences]
-    sampleDev = sum(squareDiffs)
-    variance =  sampleDev / num_items
-    standardDev = sqrt(variance)
-
-    return mu, standardDev
-
-
-def preCondition(dataset_array):
-    dataset_array = dataset_array.astype(np.float)
-    list = []
-    for i in range(58):
-        data = np.array(ss.zscore(dataset_array[:,i]))
-        list.append(data)
-    list = np.asarray(list)
-    return list.T
-
-
-#Create a linear regression learner
-
-#Create a logistic regression learner
-
-#Stochastic gradient descent
-
-#Batch gradient descent
-
-
-
-if __name__ == '__main__':
-    foldedData = openData("data/spambase.data")
-    np.set_printoptions(precision=3)
-    dataset_array = np.array(data)
-    zScoreData = preCondition(dataset_array)
-    print (zScoreData[6])
-
-
-
-
-
+    folded_data = load_dataset("data/spambase.data")
+    z_score_data = pre_condition(folded_data)
