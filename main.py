@@ -1,295 +1,123 @@
-# -*- coding: utf-8 -*-
 import os
 import numpy as np
 import pandas as pd
-from scipy import *
-from pylab import plot, show, xlabel, ylabel
-# from scipy.special import expit
+from scipy import stats
+import matplotlib.pyplot as plt
 
-np.set_printoptions(threshold=np.nan)
+def load_dataset(filename: str) -> pd.DataFrame:
+    print(f"Loading dataset from file {filename}\n")
+    data = pd.read_csv(filename, header=None, dtype=float)
+    return zscore(data)
 
-data = []
+def zscore(data: pd.DataFrame) -> pd.DataFrame:
+    return data.apply(lambda x: (x - x.mean()) / x.std(ddof=0), axis=0)
 
-
-def openData(filename):
-
-    print ("loading datset from file %s \n" % filename)
-
-    with open(filename) as infile:
-
-        for line in infile:
-
-            line = line.strip()
-
-            line = line.split(',')
-
-            data.append(line)
-
-    return openPanda(data)
-
-
-def openPanda(data):
-
-    pandaData = pd.DataFrame(data, dtype=float)
-
-    pandaData = zscore(pandaData)
-    # pandaData = kFoldData(pandaData)
-
-    return pandaData
-
-
-def zscore(data):
-
-    columns = list(data.columns)
-
-    for col in columns:
-
-        data[col] = (data[col] - data[col].mean()) / data[col].std(ddof=0)
-
-    return data
-
-
-def prepareData(data):
-
-    data = pd.DataFrame(np.hstack((np.ones((data.shape[0], 1)), data)))
-
-    columns = ['col_' + str(i) for i in range(58)]
-
-    columns.append('y')
-
+def prepare_data(data: pd.DataFrame) -> tuple:
+    data.insert(0, "ones", 1)
+    columns = [f"col_{i}" for i in range(58)]
+    columns.append("y")
     data.columns = columns
-
     predictions = np.zeros(len(data))
-
     theta = np.zeros((len(data.columns) - 1, 10))
-
     return data, columns, predictions, theta
 
+def logit_func(x: float) -> float:
+    return 1 / (1 + np.exp(-x))
 
-def kFoldData(data):
+def update_theta(type: str, theta: np.ndarray, fold: int, alpha: float, X: np.ndarray, y: np.ndarray, train: np.ndarray) -> np.ndarray:
+    if type == 'linear':
+        update = alpha / len(train) * np.dot((y - np.dot(X, theta[:, fold])), X)
+    elif type == 'logistic':
+        update = alpha / len(train) * np.dot((y - logit_func(np.dot(X, theta[:, fold]))), X)
+    else:
+        raise ValueError("Invalid type")
 
-    for fold in range(1, 11):
+    return theta[:, fold] + update
 
-        next = fold
-
-        list = []
-
-        for i, row in enumerate(data):
-
-            if i == next:
-
-                next += 10
-
-                list.append(row)  # use i to test the index values being appended
-
-        all_lists.append(list)
-
-    return all_lists
-
-
-def stats(featureList):
-
-    featureList = featureList.astype(np.float)
-
-    num_items = len(featureList)
-
-    sum_list = sum(featureList)
-
-    mu = sum_list / num_items
-
-    differences = [x - mu for x in featureList]
-
-    squareDiffs = [d ** 2 for d in differences]
-
-    sampleDev = sum(squareDiffs)
-
-    variance = sampleDev / num_items
-
-    standardDev = sqrt(variance)
-
-    return mu, standardDev
-
-
-def preCondition(dataset_array):
-
-    dataset_array = dataset_array.astype(np.float)
-
-    list = []
-
-    for i in range(58):
-
-        data = np.array(ss.zscore(dataset_array[:, i]))
-
-        list.append(data)
-
-    list = np.asarray(list)
-
-    return list.T
-
-def foldData(fold, data):
-
-    index = range(fold, len(data), 10)
-
-    validation = data.ix[index].values  # validation set
-
-    train = data.ix[~data.index.isin(index)].values
-
-    theta[:, fold]
-
-    return index, train, validation, theta[:, fold]
-
-def logitFunc(x):
-
-    return 1 / (1 + exp(-x))
-
-def linearParams(theta, fold, alpha, X, y, train):
-
-    theta[:, fold] = theta[:, fold] + alpha / (len(train)) * np.dot((y - np.dot(X, theta[:, fold])), X)
-
-    return theta[:, fold]
-
-
-def logisticParams(theta, fold, alpha, X, y, train):
-
-    theta[:, fold] = theta[:, fold] + alpha / (len(train)) * np.dot((y - logitFunc(np.dot(X, theta[:, fold]))), X)
-
-    return theta[:, fold]
-
-def costFunction(type, theta, fold, validation, index):
-
-    # SSE
-    correctY = validation[:, -1]
-
-    correctX = validation[:, :-1]
-
-    # Prediction
-    predictedY = np.dot(correctX, theta[:, fold])
-
-    predictions[index] = predictedY
+def cost_function(type: str, theta: np.ndarray, fold: int, validation: np.ndarray, index: np.ndarray) -> float:
+    correct_y = validation[:, -1]
+    correct_x = validation[:, :-1]
+    predicted_y = np.dot(correct_x, theta[:, fold])
 
     if type == 'linear':
-
-        mse = np.sum(np.square(predictedY - correctY)) / (2 * len(correctY))
-
+        mse = np.sum(np.square(predicted_y - correct_y)) / (2 * len(correct_y))
     elif type == 'logistic':
-
-        mse = np.sum(np.square(logitFunc(predictedY) - correctY)) / (2 * len(correctY))
+        mse = np.sum(np.square(logit_func(predicted_y) - correct_y)) / (2 * len(correct_y))
+    else:
+        raise ValueError("Invalid type")
 
     return mse
 
-
-def gradientDescent(data, theta, alpha, tolerance, type, convergence):
-
-    oldMeanError = 10
-
-    avgMeanError = 5
-
-    iters = 700
-
+def gradient_descent(data: pd.DataFrame, theta: np.ndarray, alpha: float, tolerance: float, type: str, convergence: str) -> tuple:
+    old_mean_error = 10
+    avg_mean_error = 5
+    max_iters = 700
     epoch = 0
+    avg_mse_list = []
 
-    avgMseList = []
-
-    while (oldMeanError - avgMeanError) > tolerance and epoch <= iters:
-
-        sqMeansList = []
+    while (old_mean_error - avg_mean_error) > tolerance and epoch <= max_iters:
+        sq_means_list = []
 
         for fold in range(10):
+            index = np.arange(fold, len(data), 10)
+            validation = data.loc[index].values
+            train = data.loc[~data.index.isin(index)].values
 
-            index, train, validation, theta[:, fold] = foldData(fold, data)
-
-            if convergence == 'stocastic':
-
+            if convergence == 'stochastic':
                 for item in range(len(train)):
-
                     X = train[item, :-1]
-
                     y = train[item, -1]
-
-                    if type == 'linear':
-
-                        theta[:, fold] = linearParams(theta, fold, alpha, X, y, train)
-
-                    elif type == 'logistic':
-
-                        theta[:, fold] = logisticParams(theta, fold, alpha, X, y, train)
+                    theta[:, fold] = update_theta(type, theta, fold, alpha, X, y, train)
 
             elif convergence == 'batch':
-
                 X = train[:, :-1]
-
                 y = train[:, -1]
+                theta[:, fold] = update_theta(type, theta, fold, alpha, X, y, train)
 
-                if type == 'linear':
+            else:
+                raise ValueError("Invalid convergence")
 
-                    theta[:, fold] = linearParams(theta, fold, alpha, X, y, train)
+            mse = cost_function(type, theta, fold, validation, index)
+            sq_means_list.append(mse)
 
-                elif type == 'logistic':
+        old_mean_error = avg_mean_error
+        avg_mean_error = sum(sq_means_list) / len(sq_means_list)
+        avg_mse_list.append((epoch, avg_mean_error))
 
-                    theta[:, fold] = logisticParams(theta, fold, alpha, X, y, train)
-
-            mse = costFunction(type, theta, fold, validation, index)
-
-            sqMeansList.append(mse)
-
-        # Calculate MSE after all folds
-        oldMeanError = avgMeanError
-
-        avgMeanError = sum(sqMeansList) / len(sqMeansList)
-
-        avgMseList.append((epoch, avgMeanError))
-
-        print("Ending epoch %d with average mean squared error of %f (%s and %s)" % (epoch, avgMeanError, type, convergence))
+        print(f"Ending epoch {epoch} with average mean squared error of {avg_mean_error} ({type} and {convergence})")
 
         epoch += 1
 
-    return avgMseList, epoch
+    return avg_mse_list, epoch
 
 
-def printResults(epoch, values):
-    print (epoch, values)
-    plot(arange(epoch), values)
+def print_results(epoch: int, values: list) -> None:
+    _, ax = plt.subplots()
+    ax.plot(range(epoch), values)
+    ax.set(xlabel='Iterations', ylabel='Cost Function')
+    plt.show()
 
-    xlabel('Iterations')
 
-    ylabel('Cost Function')
+def main() -> None:
+    data = load_dataset("data/spambase.data")
+    data, columns, predictions, theta = prepare_data(data)
 
-    show()
+    lin_stoch1, iters = gradient_descent(data, theta, 0.1, 0.000001, 'linear', 'stochastic')
+    epoch, values = lin_stoch1[0], lin_stoch1[1]
+
+    gradient_descent(data, theta, 0.075, 0.0000001, 'linear', 'stochastic')
+    gradient_descent(data, theta, 0.075, 0.0000001, 'linear', 'batch')
+
+    gradient_descent(data, theta, 0.075, 0.0000001, 'logistic', 'stochastic')
+    gradient_descent(data, theta, 0.2, 0.0000001, 'logistic', 'stochastic')
+
+    gradient_descent(data, theta, 0.075, 0.0000001, 'logistic', 'batch')
+    gradient_descent(data, theta, 0.2, 0.0000001, 'logistic', 'batch')
+
+    # Uncomment the line below to display the plot
+    # print_results(epoch, values)
 
 
 if __name__ == '__main__':
+    main()
 
-    pandaData = openData("data/spambase.data")
-
-    data, columns, predictions, theta = prepareData(pandaData)
-
-    linStoch1, iters = gradientDescent(data, theta, 0.1, 0.000001, 'linear', 'stocastic')
-    epoch, values = linStoch1[0], linStoch1[1]
-    # printResults(epoch, values)
-
-    # gradientDescent(data, theta, 1, 0.000001, 'linear', 'stocastic')
-    gradientDescent(data, theta, 0.075, 0.0000001, 'linear', 'stocastic')
-    # gradientDescent(data, theta, 0.2, 0.000001, 'linear', 'stocastic')
-    # gradientDescent(data, theta, 0.3, 0.000001, 'linear', 'stocastic')
-    # gradientDescent(data, theta, 0.4, 0.000001, 'linear', 'stocastic')
-
-    gradientDescent(data, theta, 0.075, 0.0000001, 'linear', 'batch')
-    # gradientDescent(data, theta, 0.1, 0.000001, 'linear', 'batch')
-    # gradientDescent(data, theta, 0.2, 0.000001, 'linear', 'batch')
-    # gradientDescent(data, theta, 0.3, 0.000001, 'linear', 'batch')
-    # gradientDescent(data, theta, 0.4, 0.000001, 'linear', 'batch')
-    #
-    gradientDescent(data, theta, 0.075, 0.0000001, 'logistic', 'stocastic')
-    # gradientDescent(data, theta, 0.1, 0.000001, 'logistic', 'stocastic')
-    gradientDescent(data, theta, 0.2, 0.0000001, 'logistic', 'stocastic')
-    # gradientDescent(data, theta, 0.3, 0.000001, 'logistic', 'stocastic')
-    # gradientDescent(data, theta, 0.4, 0.000001, 'logistic', 'stocastic')
-    #
-    gradientDescent(data, theta, 0.075, 0.0000001, 'logistic', 'batch')
-    # gradientDescent(data, theta, 0.1, 0.000001, 'logistic', 'batch')
-    gradientDescent(data, theta, 0.2, 0.0000001, 'logistic', 'batch')
-    # gradientDescent(data, theta, 0.3, 0.000001, 'logistic', 'batch')
-    # gradientDescent(data, theta, 0.4, 0.000001, 'logistic', 'batch')
-
-    # printResults(linStoch1, iters)
-    # print predictions
